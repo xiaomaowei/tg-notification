@@ -317,7 +317,16 @@ class ServiceManager:
         
         self.scheduler = scheduler
         
+        # 启动调度器 - 在daemon模式前先启动调度器验证配置
+        if not self.scheduler.start():
+            logger.error("启动任务调度器失败")
+            return False
+        
+        # 如果是守护进程模式，创建守护进程
         if as_daemon:
+            # 先停止已启动的调度器，在子进程中再次启动
+            self.scheduler.stop()
+            
             # 创建守护进程
             try:
                 pid = os.fork()
@@ -334,7 +343,7 @@ class ServiceManager:
             os.setsid()
             
             # 设置工作目录为根目录
-            os.chdir("/")
+            # os.chdir("/")  # 注释掉这一行，避免相对路径问题
             
             # 重定向标准输入输出到/dev/null
             sys.stdout.flush()
@@ -347,17 +356,16 @@ class ServiceManager:
             
             # 创建PID文件
             self.create_pid_file()
-        
-        # 启动调度器
-        if self.scheduler.start():
-            self.running = True
-            logger.info("服务已启动")
-            return True
-        else:
-            logger.error("启动服务失败")
-            if as_daemon:
+            
+            # 在子进程中重新启动调度器
+            if not self.scheduler.start():
+                logger.error("在守护进程中启动任务调度器失败")
                 self.remove_pid_file()
-            return False
+                return False
+        
+        self.running = True
+        logger.info("服务已启动")
+        return True
     
     def stop(self) -> bool:
         """

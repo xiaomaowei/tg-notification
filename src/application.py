@@ -125,30 +125,41 @@ class Application:
         Returns:
             是否成功启动
         """
-        # 检查服务是否已经在运行
-        pid = self.service_manager.check_pid_file()
-        if pid and self.service_manager.is_process_running(pid):
-            logger.warning(f"服务已经在运行 (PID: {pid})")
+        try:
+            # 检查服务是否已经在运行
+            pid = self.service_manager.check_pid_file()
+            if pid and self.service_manager.is_process_running(pid):
+                logger.warning(f"服务已经在运行 (PID: {pid})")
+                return False
+            
+            # 如果PID文件存在但进程不存在，则清理PID文件
+            if pid:
+                logger.warning(f"发现陈旧的PID文件，进程 (PID: {pid}) 不存在，正在清理")
+                self.service_manager.remove_pid_file()
+            
+            # 确保配置文件存在且格式正确（提前加载和验证）
+            logger.info("预检查配置文件...")
+            # 强制重新加载配置，确保文件存在且格式正确
+            self.config_manager.get_keyword_config(True)
+            self.config_manager.get_telegram_config(True)
+                    
+            # 初始化应用
+            if not self.initialize():
+                logger.error("应用初始化失败，无法启动服务")
+                return False
+            
+            # 创建调度器
+            self.scheduler = TaskScheduler(interval)
+            
+            # 添加监控任务
+            self.scheduler.add_task(self._monitoring_task, "日志监控")
+            
+            # 启动服务
+            return self.service_manager.start(self.scheduler, as_daemon)
+            
+        except Exception as e:
+            logger.error(f"启动服务时发生错误: {e}")
             return False
-        
-        # 如果PID文件存在但进程不存在，则清理PID文件
-        if pid:
-            logger.warning(f"发现陈旧的PID文件，进程 (PID: {pid}) 不存在，正在清理")
-            self.service_manager.remove_pid_file()
-        
-        # 初始化应用
-        if not self.initialize():
-            logger.error("应用初始化失败，无法启动服务")
-            return False
-        
-        # 创建调度器
-        self.scheduler = TaskScheduler(interval)
-        
-        # 添加监控任务
-        self.scheduler.add_task(self._monitoring_task, "日志监控")
-        
-        # 启动服务
-        return self.service_manager.start(self.scheduler, as_daemon)
     
     def stop_service(self) -> bool:
         """

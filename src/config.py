@@ -23,7 +23,15 @@ class ConfigLoader:
         Args:
             config_dir: 配置文件目录路径
         """
-        self.config_dir = config_dir
+        # 确保config_dir是绝对路径，以防守护进程模式下工作目录变更
+        if not os.path.isabs(config_dir):
+            # 获取程序主目录（src的上一级目录）
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            self.config_dir = os.path.abspath(os.path.join(base_dir, config_dir))
+        else:
+            self.config_dir = config_dir
+            
+        logger.debug(f"配置目录路径: {self.config_dir}")
         self._config_cache = {}
     
     def load_config(self, config_name: str) -> Dict[str, Any]:
@@ -42,6 +50,8 @@ class ConfigLoader:
         """
         config_path = os.path.join(self.config_dir, f"{config_name}.yml")
         
+        logger.debug(f"尝试加载配置文件: {config_path}")
+        
         if not os.path.exists(config_path):
             logger.error(f"配置文件不存在: {config_path}")
             raise FileNotFoundError(f"找不到配置文件: {config_path}")
@@ -49,11 +59,18 @@ class ConfigLoader:
         try:
             with open(config_path, 'r', encoding='utf-8') as file:
                 config = yaml.safe_load(file)
+                if config is None:
+                    logger.error(f"配置文件为空或格式错误: {config_path}")
+                    raise ValueError(f"配置文件为空或格式错误: {config_path}")
+                    
                 self._config_cache[config_name] = config
                 logger.debug(f"已加载配置文件: {config_path}")
                 return config
         except yaml.YAMLError as e:
             logger.error(f"配置文件解析错误: {config_path}, 错误: {e}")
+            raise ValueError(f"配置文件解析错误: {config_path}, 错误: {e}")
+        except Exception as e:
+            logger.error(f"读取配置文件时发生错误: {config_path}, 错误: {e}")
             raise
     
     def get_config(self, config_name: str, reload: bool = False) -> Dict[str, Any]:

@@ -44,9 +44,32 @@ log_files:
     # 多行日志配置
     multiline:
       # 模式类型：pattern表示使用正则表达式进行匹配
-      type: "pattern"
       # 匹配标准日志格式的时间戳，如："2025-03-28 11:47:28.123"
+      type: "pattern"
       pattern: "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}"
+
+  # 第五个日志文件配置（使用通配符路径）
+  - path: "/home/user/logs/*.log"
+    keywords:
+      - "ERROR"
+      - "失败"
+      - "异常"
+    # 多行日志配置（适用于所有匹配通配符的文件）
+    multiline:
+      type: "pattern"
+      pattern: "^\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\]"
+
+  # 第六个日志文件配置（监控ai_content_generator的错误日志）
+  - path: "/home/deniswei/weibo-crawler-AI/error_log/*.log"
+    keywords:
+      - "WARNING"
+      - "ERROR"
+      - "未能提取"
+      - "失败"
+    # 多行日志配置（方括号格式时间戳）
+    multiline:
+      type: "pattern"
+      pattern: "^\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\]"
 
 # 日志读取配置
 log_reader:

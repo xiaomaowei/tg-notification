@@ -93,8 +93,12 @@ class Application:
     def _monitoring_task(self):
         """日志监控任务"""
         try:
-            # 检查日志
-            matches = self.log_monitor.check_logs()
+            # 获取关键词配置（用于检查新文件）
+            keyword_config = self.config_manager.get_keyword_config(True)  # 强制重新加载配置
+            log_configs = keyword_config.get("log_files", [])
+            
+            # 检查日志，传入配置以便检查新文件
+            matches = self.log_monitor.check_logs(log_configs)
             
             if matches:
                 logger.info(f"发现 {len(matches)} 个匹配项")

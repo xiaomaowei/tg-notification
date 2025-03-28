@@ -9,6 +9,7 @@
 import os
 import time
 import re
+import glob
 import logging
 from typing import Dict, List, Set, Optional, Any, Tuple
 
@@ -252,6 +253,25 @@ class LogMonitor:
         self.setup_monitors(log_configs)
         self.processed_hashes = set()  # 用于去重
     
+    def _expand_path_patterns(self, path: str) -> List[str]:
+        """
+        展开路径中的通配符
+        
+        Args:
+            path: 可能包含通配符的路径
+            
+        Returns:
+            展开后的路径列表
+        """
+        # 检查路径中是否包含通配符
+        if '*' in path or '?' in path or '[' in path:
+            expanded_paths = glob.glob(path)
+            if not expanded_paths:
+                logger.warning(f"通配符路径没有匹配到任何文件: {path}")
+            return expanded_paths
+        else:
+            return [path]
+    
     def setup_monitors(self, log_configs: List[Dict[str, Any]]):
         """
         设置监控器
@@ -275,19 +295,65 @@ class LogMonitor:
             # 获取多行配置
             multiline_config = config.get("multiline")
             
-            # 创建日志读取器
-            self.log_readers[log_path] = LogReader(log_path, multiline_config)
-            self.matchers[log_path] = KeywordMatcher(keywords, use_regex)
+            # 展开通配符路径
+            expanded_paths = self._expand_path_patterns(log_path)
             
-            logger.info(f"已设置日志监控: {log_path}, 关键词数量: {len(keywords)}, 使用正则: {use_regex}, 多行模式: {bool(multiline_config)}")
+            # 为每个匹配的路径创建日志读取器
+            for path in expanded_paths:
+                self.log_readers[path] = LogReader(path, multiline_config)
+                self.matchers[path] = KeywordMatcher(keywords, use_regex)
+                
+                logger.info(f"已设置日志监控: {path}, 关键词数量: {len(keywords)}, 使用正则: {use_regex}, 多行模式: {bool(multiline_config)}")
+            
+            # 如果是通配符路径，记录展开结果
+            if len(expanded_paths) > 1 or (expanded_paths and expanded_paths[0] != log_path):
+                logger.info(f"通配符路径 {log_path} 已展开为 {len(expanded_paths)} 个文件")
     
-    def check_logs(self) -> List[Dict[str, Any]]:
+    def check_for_new_files(self, log_configs: List[Dict[str, Any]]):
+        """
+        检查通配符路径是否有新文件
+        
+        Args:
+            log_configs: 日志配置列表
+        """
+        for config in log_configs:
+            log_path = config.get("path")
+            if not log_path or ('*' not in log_path and '?' not in log_path and '[' not in log_path):
+                continue
+            
+            # 展开通配符路径
+            expanded_paths = self._expand_path_patterns(log_path)
+            
+            # 检查是否有新文件
+            for path in expanded_paths:
+                if path not in self.log_readers:
+                    logger.info(f"发现新文件: {path}")
+                    
+                    # 获取多行配置
+                    multiline_config = config.get("multiline")
+                    keywords = config.get("keywords", [])
+                    use_regex = config.get("use_regex", False)
+                    
+                    # 创建日志读取器
+                    self.log_readers[path] = LogReader(path, multiline_config)
+                    self.matchers[path] = KeywordMatcher(keywords, use_regex)
+                    
+                    logger.info(f"已设置日志监控: {path}, 关键词数量: {len(keywords)}, 使用正则: {use_regex}, 多行模式: {bool(multiline_config)}")
+    
+    def check_logs(self, log_configs: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
         """
         检查所有日志文件，查找匹配的日志行
         
+        Args:
+            log_configs: 可选的日志配置列表，用于检查新文件
+            
         Returns:
             匹配的日志信息列表
         """
+        # 如果提供了配置，检查是否有新文件
+        if log_configs:
+            self.check_for_new_files(log_configs)
+            
         matches = []
         
         for log_path, reader in self.log_readers.items():

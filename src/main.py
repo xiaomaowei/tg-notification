@@ -49,10 +49,14 @@ def setup_logger(log_level=logging.INFO):
 
 def parse_arguments():
     """解析命令行参数"""
+    # 创建主解析器
     parser = argparse.ArgumentParser(description="Telegram通知程序")
+    
+    # 全局选项
     parser.add_argument("--config", type=str, default="config", help="配置文件目录路径")
     parser.add_argument("--debug", action="store_true", help="启用调试模式")
     
+    # 创建子命令解析器
     subparsers = parser.add_subparsers(dest="command", help="命令")
     
     # 启动监控服务命令
@@ -70,7 +74,14 @@ def parse_arguments():
     # 查看状态命令
     status_parser = subparsers.add_parser("status", help="查看服务状态")
     
-    return parser.parse_args()
+    args = parser.parse_args()
+    
+    # 如果没有指定命令，显示帮助信息
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+    
+    return args
 
 def main():
     """主函数"""
@@ -133,11 +144,6 @@ def main():
             print(f"错误次数: {scheduler.get('error_count', 0)}")
         else:
             print("服务状态: 未运行")
-    
-    else:
-        parser = argparse.ArgumentParser()
-        parser.parse_args(["--help"])
-        return 1
     
     return 0
 

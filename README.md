@@ -10,6 +10,7 @@
 - 支持HTML和Markdown格式消息
 - 后台守护进程模式运行
 - 可配置的监控间隔
+- 支持多种日志格式，包括多行日志
 
 ## 安装
 
@@ -35,11 +36,30 @@ cp config/keyword_config.yml.example config/keyword_config.yml
 
 ## 使用方法
 
+### 命令行参数
+
+程序支持以下命令行参数：
+
+```
+--config CONFIG    配置文件目录路径
+--debug            启用调试模式
+```
+
+子命令：
+
+- `start`：启动监控服务
+  - `--no-daemon`：前台运行，不作为守护进程
+  - `--interval N`：设置检查间隔（秒）
+- `stop`：停止监控服务
+- `test`：发送测试消息
+  - `--message MSG`：指定测试消息内容
+- `status`：查看服务状态
+
 ### 启动监控服务
 
 ```bash
 # 前台运行（调试模式）
-python tg_notification.py start --no-daemon --debug
+python tg_notification.py --debug start --no-daemon
 
 # 后台运行
 python tg_notification.py start
@@ -93,6 +113,17 @@ log_files:
       - "FATAL"
       - "Exception"
     use_regex: false  # 是否使用正则表达式匹配
+    
+  # 多行日志配置示例
+  - path: "/var/log/multiline.log"
+    keywords:
+      - "ERROR"
+      - "WARNING"
+    # 多行日志配置
+    multiline:
+      type: "pattern"
+      # 匹配新日志行开始的模式
+      pattern: "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"
 ```
 
 ## 日志文件

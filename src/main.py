@@ -13,6 +13,8 @@ import argparse
 import logging
 from logging.handlers import RotatingFileHandler
 import time
+import threading
+import signal
 
 from .application import Application
 
@@ -107,10 +109,32 @@ def main():
             # 如果是前台模式，则保持主进程运行
             if args.no_daemon:
                 try:
-                    while True:
-                        time.sleep(1)
-                except KeyboardInterrupt:
-                    print("接收到中断信号，正在停止服务...")
+                    # 使用事件来等待，而不是无限循环
+                    # 这样可以在接收到信号时立即退出
+                    stop_event = threading.Event()
+                    
+                    # 注册信号处理函数
+                    def signal_handler(signum, frame):
+                        logger.info(f"接收到信号: {signal.Signals(signum).name} ({signum})")
+                        print("接收到中断信号，正在停止服务...")
+                        app.stop_service()
+                        print("服务已停止")
+                        stop_event.set()  # 设置事件，使得wait返回
+                    
+                    # 注册SIGINT信号处理函数
+                    original_sigint_handler = signal.getsignal(signal.SIGINT)
+                    signal.signal(signal.SIGINT, signal_handler)
+                    
+                    # 等待事件被设置
+                    try:
+                        while not stop_event.is_set():
+                            stop_event.wait(1)  # 每秒检查一次
+                    finally:
+                        # 恢复原始信号处理函数
+                        signal.signal(signal.SIGINT, original_sigint_handler)
+                        
+                except Exception as e:
+                    logger.error(f"前台运行模式发生错误: {e}")
                     app.stop_service()
                     print("服务已停止")
         else:

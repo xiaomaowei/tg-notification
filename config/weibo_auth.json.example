@@ -1,0 +1,34 @@
+[
+    {
+        "domain": ".weibo.com",
+        "expiry": 1774362234,
+        "httpOnly": true,
+        "name": "SUB",
+        "path": "/",
+        "sameSite": "None",
+        "secure": true,
+        "value": "your_sub_cookie_value",
+        "id": 1
+    },
+    {
+        "domain": ".weibo.com",
+        "expiry": 1774362234,
+        "httpOnly": false,
+        "name": "SUBP",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": false,
+        "value": "your_subp_cookie_value",
+        "id": 2
+    },
+    {
+        "domain": "weibo.com",
+        "httpOnly": false,
+        "name": "XSRF-TOKEN",
+        "path": "/",
+        "sameSite": "Lax",
+        "secure": true,
+        "value": "your_xsrf_token_value",
+        "id": 3
+    }
+] 

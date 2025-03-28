@@ -17,6 +17,9 @@ __pycache__/
 src/config/mysql_config.yml
 src/config/ai_config.yml
 src/config/weibo_auth.json
+config/*.yml
+config/*.json
+config/*.env
 
 # Others
 google-chrome-stable_current_amd64.deb

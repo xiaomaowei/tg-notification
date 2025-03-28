@@ -15,6 +15,7 @@ from logging.handlers import RotatingFileHandler
 import time
 import threading
 import signal
+from datetime import datetime
 
 from .application import Application
 
@@ -162,10 +163,26 @@ def main():
         
         if status["running"]:
             print("服务状态: 运行中")
+            print(f"进程ID: {status['pid']}")
+            if status.get("daemon_mode", False):
+                print("运行模式: 守护进程")
+            else:
+                print("运行模式: 前台")
+                
+            print(f"PID文件: {status['pid_file']}")
+            
             scheduler = status.get("scheduler", {})
-            print(f"任务数量: {scheduler.get('tasks_count', 0)}")
-            print(f"执行次数: {scheduler.get('execution_count', 0)}")
-            print(f"错误次数: {scheduler.get('error_count', 0)}")
+            if scheduler:
+                print(f"任务数量: {scheduler.get('tasks_count', 0)}")
+                print(f"执行次数: {scheduler.get('execution_count', 0)}")
+                print(f"错误次数: {scheduler.get('error_count', 0)}")
+                
+                if scheduler.get("last_run_time"):
+                    last_run = datetime.fromtimestamp(scheduler["last_run_time"])
+                    print(f"上次执行: {last_run.strftime('%Y-%m-%d %H:%M:%S')}")
+                    
+                if scheduler.get("next_run_in"):
+                    print(f"下次执行: {int(scheduler['next_run_in'])}秒后")
         else:
             print("服务状态: 未运行")
     

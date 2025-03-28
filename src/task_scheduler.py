@@ -11,6 +11,7 @@ import time
 import signal
 import logging
 import threading
+import sys
 from typing import Dict, List, Any, Optional, Callable
 from datetime import datetime
 
@@ -201,7 +202,7 @@ class ServiceManager:
         """初始化服务管理器"""
         self.scheduler = None
         self.running = False
-        self.pid_file = None
+        self.pid_file = "/tmp/tg_notification.pid"  # 设置默认PID文件路径
         
         # 注册信号处理
         signal.signal(signal.SIGINT, self._handle_signal)
@@ -260,6 +261,45 @@ class ServiceManager:
             logger.error(f"删除PID文件失败: {e}")
             return False
     
+    def is_process_running(self, pid: int) -> bool:
+        """
+        检查进程是否在运行
+        
+        Args:
+            pid: 进程ID
+            
+        Returns:
+            进程是否在运行
+        """
+        try:
+            # 在Unix/Linux系统中，向进程发送信号0用于检查进程是否存在
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            # 进程不存在
+            return False
+        except Exception as e:
+            logger.error(f"检查进程状态时发生错误: {e}")
+            return False
+    
+    def check_pid_file(self) -> Optional[int]:
+        """
+        检查PID文件是否存在并读取PID
+        
+        Returns:
+            进程ID，如果文件不存在或无效则返回None
+        """
+        if not os.path.exists(self.pid_file):
+            return None
+            
+        try:
+            with open(self.pid_file, 'r') as f:
+                pid = int(f.read().strip())
+                return pid
+        except (IOError, ValueError) as e:
+            logger.error(f"读取PID文件失败: {e}")
+            return None
+    
     def start(self, scheduler: TaskScheduler, as_daemon: bool = True) -> bool:
         """
         启动服务
@@ -278,6 +318,33 @@ class ServiceManager:
         self.scheduler = scheduler
         
         if as_daemon:
+            # 创建守护进程
+            try:
+                pid = os.fork()
+                if pid > 0:
+                    # 父进程退出
+                    logger.info(f"已创建守护进程 (PID: {pid})")
+                    sys.exit(0)
+            except OSError as e:
+                logger.error(f"创建守护进程失败: {e}")
+                return False
+            
+            # 子进程继续运行
+            # 脱离控制终端
+            os.setsid()
+            
+            # 设置工作目录为根目录
+            os.chdir("/")
+            
+            # 重定向标准输入输出到/dev/null
+            sys.stdout.flush()
+            sys.stderr.flush()
+            with open(os.devnull, 'r') as f:
+                os.dup2(f.fileno(), sys.stdin.fileno())
+            with open(os.devnull, 'a+') as f:
+                os.dup2(f.fileno(), sys.stdout.fileno())
+                os.dup2(f.fileno(), sys.stderr.fileno())
+            
             # 创建PID文件
             self.create_pid_file()
         
@@ -288,7 +355,8 @@ class ServiceManager:
             return True
         else:
             logger.error("启动服务失败")
-            self.remove_pid_file()
+            if as_daemon:
+                self.remove_pid_file()
             return False
     
     def stop(self) -> bool:
@@ -320,10 +388,19 @@ class ServiceManager:
         Returns:
             服务状态字典
         """
+        # 检查PID文件中的进程是否在运行
+        pid = self.check_pid_file()
+        is_daemon_running = False
+        
+        if pid:
+            is_daemon_running = self.is_process_running(pid)
+            
         status = {
-            "running": self.running,
-            "pid": os.getpid(),
+            "running": self.running or is_daemon_running,
+            "pid": pid if is_daemon_running else os.getpid(),
             "pid_file": self.pid_file,
+            "pid_file_exists": os.path.exists(self.pid_file),
+            "daemon_mode": is_daemon_running,
             "start_time": None,
             "uptime": None,
             "scheduler": None

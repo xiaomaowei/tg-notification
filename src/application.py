@@ -125,6 +125,17 @@ class Application:
         Returns:
             是否成功启动
         """
+        # 检查服务是否已经在运行
+        pid = self.service_manager.check_pid_file()
+        if pid and self.service_manager.is_process_running(pid):
+            logger.warning(f"服务已经在运行 (PID: {pid})")
+            return False
+        
+        # 如果PID文件存在但进程不存在，则清理PID文件
+        if pid:
+            logger.warning(f"发现陈旧的PID文件，进程 (PID: {pid}) 不存在，正在清理")
+            self.service_manager.remove_pid_file()
+        
         # 初始化应用
         if not self.initialize():
             logger.error("应用初始化失败，无法启动服务")
@@ -146,6 +157,46 @@ class Application:
         Returns:
             是否成功停止
         """
+        # 检查是否存在PID文件，如果存在则尝试停止对应的进程
+        pid = self.service_manager.check_pid_file()
+        if pid:
+            try:
+                import os
+                import signal
+                logger.info(f"正在停止守护进程 (PID: {pid})...")
+                os.kill(pid, signal.SIGTERM)
+                
+                # 等待进程结束
+                for _ in range(10):  # 最多等待10秒
+                    if not self.service_manager.is_process_running(pid):
+                        break
+                    time.sleep(1)
+                
+                if not self.service_manager.is_process_running(pid):
+                    logger.info(f"守护进程 (PID: {pid}) 已停止")
+                    self.service_manager.remove_pid_file()
+                    return True
+                else:
+                    logger.warning(f"守护进程 (PID: {pid}) 未能在给定时间内停止")
+                    # 强制停止
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                        logger.info(f"已强制停止守护进程 (PID: {pid})")
+                        self.service_manager.remove_pid_file()
+                        return True
+                    except Exception as e:
+                        logger.error(f"强制停止守护进程失败: {e}")
+                        return False
+            except ProcessLookupError:
+                # 进程不存在，只需删除PID文件
+                logger.info(f"进程 (PID: {pid}) 不存在，清理PID文件")
+                self.service_manager.remove_pid_file()
+                return True
+            except Exception as e:
+                logger.error(f"停止守护进程失败: {e}")
+                return False
+        
+        # 如果没有PID文件或进程，则尝试停止当前的服务
         return self.service_manager.stop()
     
     def get_service_status(self) -> Dict[str, Any]:

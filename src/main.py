@@ -104,42 +104,50 @@ def main():
     if args.command == "start":
         logger.info(f"启动监控服务，间隔: {args.interval}秒，守护进程模式: {not args.no_daemon}")
         
-        if app.start_service(args.interval, not args.no_daemon):
-            print(f"监控服务已启动，日志文件位置: logs/tg_notification.log")
-            
-            # 如果是前台模式，则保持主进程运行
-            if args.no_daemon:
-                try:
-                    # 使用事件来等待，而不是无限循环
-                    # 这样可以在接收到信号时立即退出
-                    stop_event = threading.Event()
-                    
-                    # 注册信号处理函数
-                    def signal_handler(signum, frame):
-                        logger.info(f"接收到信号: {signal.Signals(signum).name} ({signum})")
-                        print("接收到中断信号，正在停止服务...")
+        try:
+            if app.start_service(args.interval, not args.no_daemon):
+                if not args.no_daemon:
+                    print(f"监控服务已在后台启动，日志文件位置: logs/tg_notification.log")
+                    print(f"使用命令查看服务状态: python tg_notification.py status")
+                    print(f"使用命令停止服务: python tg_notification.py stop")
+                else:
+                    print(f"监控服务已在前台启动，日志文件位置: logs/tg_notification.log")
+                    # 如果是前台模式，则保持主进程运行
+                    try:
+                        # 使用事件来等待，而不是无限循环
+                        # 这样可以在接收到信号时立即退出
+                        stop_event = threading.Event()
+                        
+                        # 注册信号处理函数
+                        def signal_handler(signum, frame):
+                            logger.info(f"接收到信号: {signal.Signals(signum).name} ({signum})")
+                            print("接收到中断信号，正在停止服务...")
+                            app.stop_service()
+                            print("服务已停止")
+                            stop_event.set()  # 设置事件，使得wait返回
+                        
+                        # 注册SIGINT信号处理函数
+                        original_sigint_handler = signal.getsignal(signal.SIGINT)
+                        signal.signal(signal.SIGINT, signal_handler)
+                        
+                        # 等待事件被设置
+                        try:
+                            while not stop_event.is_set():
+                                stop_event.wait(1)  # 每秒检查一次
+                        finally:
+                            # 恢复原始信号处理函数
+                            signal.signal(signal.SIGINT, original_sigint_handler)
+                            
+                    except Exception as e:
+                        logger.error(f"前台运行模式发生错误: {e}")
                         app.stop_service()
                         print("服务已停止")
-                        stop_event.set()  # 设置事件，使得wait返回
-                    
-                    # 注册SIGINT信号处理函数
-                    original_sigint_handler = signal.getsignal(signal.SIGINT)
-                    signal.signal(signal.SIGINT, signal_handler)
-                    
-                    # 等待事件被设置
-                    try:
-                        while not stop_event.is_set():
-                            stop_event.wait(1)  # 每秒检查一次
-                    finally:
-                        # 恢复原始信号处理函数
-                        signal.signal(signal.SIGINT, original_sigint_handler)
-                        
-                except Exception as e:
-                    logger.error(f"前台运行模式发生错误: {e}")
-                    app.stop_service()
-                    print("服务已停止")
-        else:
-            print("启动服务失败，请检查日志了解详情")
+            else:
+                print("启动服务失败，请检查日志了解详情")
+                return 1
+        except Exception as e:
+            logger.error(f"启动服务时发生未处理的异常: {e}")
+            print(f"启动服务失败: {e}")
             return 1
     
     elif args.command == "stop":

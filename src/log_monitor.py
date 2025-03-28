@@ -17,17 +17,30 @@ logger = logging.getLogger("tg_notification")
 class LogReader:
     """日志读取器，用于读取和跟踪日志文件"""
     
-    def __init__(self, log_path: str):
+    def __init__(self, log_path: str, multiline_config: Optional[Dict[str, Any]] = None):
         """
         初始化日志读取器
         
         Args:
             log_path: 日志文件路径
+            multiline_config: 多行日志配置，包含类型和模式
         """
         self.log_path = log_path
         self.last_position = 0
         self.last_inode = None
         self.file_exists = False
+        self.multiline_config = multiline_config
+        self.multiline_pattern = None
+        
+        # 如果有多行配置，则编译正则表达式
+        if self.multiline_config and self.multiline_config.get("type") == "pattern":
+            pattern = self.multiline_config.get("pattern", "")
+            if pattern:
+                try:
+                    self.multiline_pattern = re.compile(pattern)
+                    logger.debug(f"已编译多行匹配模式: {pattern}")
+                except re.error as e:
+                    logger.error(f"多行匹配模式编译失败: {pattern}, 错误: {e}")
     
     def get_file_inode(self) -> Optional[int]:
         """
@@ -82,6 +95,43 @@ class LogReader:
         
         return False
     
+    def _process_multiline_logs(self, raw_lines: List[str]) -> List[str]:
+        """
+        处理多行日志，将属于同一条日志的多行合并
+        
+        Args:
+            raw_lines: 原始日志行列表
+            
+        Returns:
+            处理后的日志行列表
+        """
+        if not self.multiline_pattern:
+            return raw_lines
+        
+        processed_lines = []
+        current_log = None
+        
+        for line in raw_lines:
+            # 检查是否是新日志的开始
+            if self.multiline_pattern.match(line):
+                # 如果有当前日志，则添加到结果中
+                if current_log is not None:
+                    processed_lines.append(current_log)
+                current_log = line
+            else:
+                # 如果不是新日志的开始，则附加到当前日志
+                if current_log is not None:
+                    current_log += "\n" + line
+                else:
+                    # 如果没有当前日志（可能是文件的第一行不匹配模式），则创建一个新日志
+                    current_log = line
+        
+        # 添加最后一条日志
+        if current_log is not None:
+            processed_lines.append(current_log)
+        
+        return processed_lines
+    
     def read_new_lines(self) -> List[str]:
         """
         读取日志文件中的新行
@@ -101,10 +151,17 @@ class LogReader:
                     return []
                 
                 file.seek(self.last_position)
-                new_lines = file.readlines()
+                raw_lines = file.readlines()
                 self.last_position = end_position
                 
-                return [line.rstrip('\n') for line in new_lines]
+                # 去除行尾换行符
+                raw_lines = [line.rstrip('\n') for line in raw_lines]
+                
+                # 如果有多行配置，则处理多行日志
+                if self.multiline_pattern:
+                    return self._process_multiline_logs(raw_lines)
+                
+                return raw_lines
         except Exception as e:
             logger.error(f"读取日志文件失败: {self.log_path}, 错误: {e}")
             return []
@@ -215,10 +272,14 @@ class LogMonitor:
             
             use_regex = config.get("use_regex", False)
             
-            self.log_readers[log_path] = LogReader(log_path)
+            # 获取多行配置
+            multiline_config = config.get("multiline")
+            
+            # 创建日志读取器
+            self.log_readers[log_path] = LogReader(log_path, multiline_config)
             self.matchers[log_path] = KeywordMatcher(keywords, use_regex)
             
-            logger.info(f"已设置日志监控: {log_path}, 关键词数量: {len(keywords)}, 使用正则: {use_regex}")
+            logger.info(f"已设置日志监控: {log_path}, 关键词数量: {len(keywords)}, 使用正则: {use_regex}, 多行模式: {bool(multiline_config)}")
     
     def check_logs(self) -> List[Dict[str, Any]]:
         """

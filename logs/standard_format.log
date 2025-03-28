@@ -1,0 +1,22 @@
+2025-03-28 10:15:23.456 [INFO] [main-thread] [TX123456] [PID9876] 系统启动成功，开始处理作业
+2025-03-28 10:16:45.789 [INFO] [worker-1] [TX123457] [PID9876] 开始处理任务#12345
+2025-03-28 10:17:12.345 [WARNING] [worker-1] [TX123457] [PID9876] 任务#12345处理时间超过预期阈值
+部分数据处理较慢，可能需要进一步优化
+建议检查数据库连接池配置
+2025-03-28 10:18:33.678 [ERROR] [worker-1] [TX123457] [PID9876] 任务#12345处理失败，未能提取到内容
+原因：数据源连接超时
+java.net.SocketTimeoutException: connect timed out
+    at java.net.PlainSocketImpl.socketConnect(Native Method)
+    at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:350)
+    at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:206)
+    at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:188)
+    at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:392)
+    at java.net.Socket.connect(Socket.java:589)
+2025-03-28 10:19:05.123 [INFO] [main-thread] [TX123458] [PID9876] 开始重试任务#12345，尝试次数：1
+2025-03-28 10:20:15.456 [INFO] [worker-2] [TX123458] [PID9876] 任务#12345处理成功
+2025-03-28 10:21:33.789 [INFO] [scheduler] [TX123459] [PID9876] 计划下一批任务，队列长度：5
+2025-03-28 10:22:46.012 [WARNING] [ai_content_generator] [TX123460] [PID9876] 未能提取到内容，使用默认内容
+这可能是因为源数据格式不符合预期
+请检查输入数据的格式和完整性
+如果问题持续存在，请联系管理员
+2025-03-28 10:23:58.345 [INFO] [worker-3] [TX123461] [PID9876] 完成今日所有任务，总计处理：45 

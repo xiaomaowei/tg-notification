@@ -11,7 +11,8 @@ import time
 import logging
 import requests
 import html
-from typing import Dict, List, Any, Optional
+import re
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 
 logger = logging.getLogger("tg_notification")
@@ -30,6 +31,41 @@ class MessageFormatter:
         if self.format_type not in ["html", "markdown"]:
             logger.warning(f"不支持的消息格式类型: {format_type}，使用默认类型: html")
             self.format_type = "html"
+        
+        # 常见日志格式的正则表达式模式
+        self.log_patterns = [
+            # 标准日志格式：2025-03-28 10:15:23.456 [INFO] [main-thread] [TX123456] [PID9876] 消息内容
+            (
+                re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{3})?) \[([^\]]+)\] \[([^\]]+)\] \[([^\]]+)\] \[([^\]]+)\] (.+)$'),
+                lambda m: {
+                    "timestamp": m.group(1),
+                    "log_level": m.group(2),
+                    "thread": m.group(3),
+                    "transaction_id": m.group(4),
+                    "pid": m.group(5),
+                    "message": m.group(6)
+                }
+            ),
+            # 方括号日期格式：[2025-03-28 10:15:23] [system] [INFO] 消息内容
+            (
+                re.compile(r'^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] \[([^\]]+)\] \[([^\]]+)\] (.+)$'),
+                lambda m: {
+                    "timestamp": m.group(1),
+                    "component": m.group(2),
+                    "log_level": m.group(3),
+                    "message": m.group(4)
+                }
+            ),
+            # 简单日志格式：2023-07-01 10:15:38 ERROR 消息内容
+            (
+                re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) ([A-Z]+) (.+)$'),
+                lambda m: {
+                    "timestamp": m.group(1),
+                    "log_level": m.group(2),
+                    "message": m.group(3)
+                }
+            )
+        ]
     
     def format_text(self, text: str) -> str:
         """
@@ -51,6 +87,144 @@ class MessageFormatter:
             return text
         return text
     
+    def _parse_log_line(self, line: str) -> Dict[str, Any]:
+        """
+        解析日志行，尝试提取结构化信息
+        
+        Args:
+            line: 日志行
+            
+        Returns:
+            解析后的日志信息字典
+        """
+        for pattern, extractor in self.log_patterns:
+            match = pattern.match(line)
+            if match:
+                return extractor(match)
+        
+        # 如果没有匹配任何模式，则返回原始消息
+        return {"raw_message": line}
+    
+    def _get_log_level_emoji(self, log_level: str) -> str:
+        """
+        根据日志级别返回对应的emoji
+        
+        Args:
+            log_level: 日志级别
+            
+        Returns:
+            对应的emoji
+        """
+        level = log_level.upper() if log_level else ""
+        
+        if "ERROR" in level or "EXCEPTION" in level or "FATAL" in level:
+            return "🔴"
+        elif "WARN" in level:
+            return "⚠️"
+        elif "INFO" in level:
+            return "ℹ️"
+        elif "DEBUG" in level:
+            return "🔍"
+        else:
+            return "📄"
+    
+    def _format_structured_message(self, parsed_log: Dict[str, Any]) -> str:
+        """
+        格式化结构化日志信息
+        
+        Args:
+            parsed_log: 解析后的日志信息
+            
+        Returns:
+            格式化后的消息
+        """
+        # 如果是原始消息，直接返回
+        if "raw_message" in parsed_log:
+            return parsed_log["raw_message"]
+        
+        # 获取日志级别和emoji
+        log_level = parsed_log.get("log_level", "")
+        emoji = self._get_log_level_emoji(log_level)
+        
+        # 构建结构化消息
+        if self.format_type == "html":
+            message = f"{emoji} <b>{self.format_text(log_level)}</b>\n\n"
+            
+            # 添加时间戳
+            if "timestamp" in parsed_log:
+                message += f"<b>时间:</b> {self.format_text(parsed_log['timestamp'])}\n"
+            
+            # 添加组件/线程信息
+            if "component" in parsed_log:
+                message += f"<b>组件:</b> {self.format_text(parsed_log['component'])}\n"
+            elif "thread" in parsed_log:
+                message += f"<b>线程:</b> {self.format_text(parsed_log['thread'])}\n"
+            
+            # 添加事务ID
+            if "transaction_id" in parsed_log:
+                message += f"<b>事务ID:</b> {self.format_text(parsed_log['transaction_id'])}\n"
+            
+            # 添加PID
+            if "pid" in parsed_log:
+                message += f"<b>PID:</b> {self.format_text(parsed_log['pid'])}\n"
+            
+            # 添加消息内容
+            if "message" in parsed_log:
+                message += f"\n<b>消息:</b>\n<pre>{self.format_text(parsed_log['message'])}</pre>"
+            
+        elif self.format_type == "markdown":
+            message = f"{emoji} *{self.format_text(log_level)}*\n\n"
+            
+            # 添加时间戳
+            if "timestamp" in parsed_log:
+                message += f"*时间:* {self.format_text(parsed_log['timestamp'])}\n"
+            
+            # 添加组件/线程信息
+            if "component" in parsed_log:
+                message += f"*组件:* {self.format_text(parsed_log['component'])}\n"
+            elif "thread" in parsed_log:
+                message += f"*线程:* {self.format_text(parsed_log['thread'])}\n"
+            
+            # 添加事务ID
+            if "transaction_id" in parsed_log:
+                message += f"*事务ID:* {self.format_text(parsed_log['transaction_id'])}\n"
+            
+            # 添加PID
+            if "pid" in parsed_log:
+                message += f"*PID:* {self.format_text(parsed_log['pid'])}\n"
+            
+            # 添加消息内容
+            if "message" in parsed_log:
+                message += f"\n*消息:*\n```\n{self.format_text(parsed_log['message'])}\n```"
+        
+        else:
+            # 纯文本格式
+            message = f"{emoji} {log_level}\n\n"
+            
+            # 添加时间戳
+            if "timestamp" in parsed_log:
+                message += f"时间: {parsed_log['timestamp']}\n"
+            
+            # 添加组件/线程信息
+            if "component" in parsed_log:
+                message += f"组件: {parsed_log['component']}\n"
+            elif "thread" in parsed_log:
+                message += f"线程: {parsed_log['thread']}\n"
+            
+            # 添加事务ID
+            if "transaction_id" in parsed_log:
+                message += f"事务ID: {parsed_log['transaction_id']}\n"
+            
+            # 添加PID
+            if "pid" in parsed_log:
+                message += f"PID: {parsed_log['pid']}\n"
+            
+            # 添加消息内容
+            if "message" in parsed_log:
+                message += f"\n消息:\n{parsed_log['message']}"
+        
+        return message
+    
     def format_message(self, match_info: Dict[str, Any]) -> str:
         """
         格式化匹配信息为Telegram消息
@@ -69,34 +243,55 @@ class MessageFormatter:
         # 转换时间戳为可读格式
         time_str = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
         
+        # 尝试解析匹配行
+        parsed_log = self._parse_log_line(matched_line)
+        structured_message = self._format_structured_message(parsed_log)
+        
         if self.format_type == "html":
             message = f"<b>⚠️ 关键词告警</b>\n\n"
             message += f"<b>时间:</b> {time_str}\n"
             message += f"<b>日志文件:</b> <code>{self.format_text(log_path)}</code>\n\n"
-            message += f"<b>匹配内容:</b>\n<pre>{self.format_text(matched_line)}</pre>\n\n"
+            
+            # 如果能够解析日志，则使用结构化消息
+            if "raw_message" not in parsed_log:
+                message += f"<b>匹配内容:</b>\n{structured_message}\n\n"
+            else:
+                message += f"<b>匹配内容:</b>\n<pre>{self.format_text(matched_line)}</pre>\n\n"
             
             if context:
                 message += f"<b>上下文:</b>\n<pre>"
                 for line in context:
                     message += f"{self.format_text(line)}\n"
                 message += "</pre>"
+        
         elif self.format_type == "markdown":
             message = f"*⚠️ 关键词告警*\n\n"
             message += f"*时间:* {time_str}\n"
             message += f"*日志文件:* `{self.format_text(log_path)}`\n\n"
-            message += f"*匹配内容:*\n```\n{self.format_text(matched_line)}\n```\n\n"
+            
+            # 如果能够解析日志，则使用结构化消息
+            if "raw_message" not in parsed_log:
+                message += f"*匹配内容:*\n{structured_message}\n\n"
+            else:
+                message += f"*匹配内容:*\n```\n{self.format_text(matched_line)}\n```\n\n"
             
             if context:
                 message += f"*上下文:*\n```\n"
                 for line in context:
                     message += f"{self.format_text(line)}\n"
                 message += "```"
+        
         else:
             # 纯文本格式
             message = f"⚠️ 关键词告警\n\n"
             message += f"时间: {time_str}\n"
             message += f"日志文件: {log_path}\n\n"
-            message += f"匹配内容:\n{matched_line}\n\n"
+            
+            # 如果能够解析日志，则使用结构化消息
+            if "raw_message" not in parsed_log:
+                message += f"匹配内容:\n{structured_message}\n\n"
+            else:
+                message += f"匹配内容:\n{matched_line}\n\n"
             
             if context:
                 message += f"上下文:\n"

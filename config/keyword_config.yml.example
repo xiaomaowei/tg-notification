@@ -20,14 +20,33 @@ log_files:
       - "\\bexception\\b"   # 匹配单词"exception"
     use_regex: true  # 启用正则表达式匹配
 
-  # 第三个日志文件配置（示例）
-  - path: "/home/user/myapp/logs/app.log"
+  # 第三个日志文件配置（多行日志示例）
+  - path: "/var/log/multiline.log"
     keywords:
-      - "数据库连接失败"
-      - "无法访问"
-      - "权限被拒绝"
-      - "验证失败"
-    use_regex: false
+      - "ERROR"
+      - "WARNING"
+      - "失败"
+      - "异常"
+    # 多行日志配置
+    multiline:
+      # 模式类型：pattern表示使用正则表达式进行匹配
+      type: "pattern"
+      # 匹配新日志行开始的模式
+      # 此模式匹配形如 [2025-03-28 11:47:28] 的时间戳，作为新日志的开始
+      pattern: "^\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\]"
+
+  # 第四个日志文件配置（使用标准日志格式的多行日志）
+  - path: "/var/log/standard_format.log"
+    keywords:
+      - "WARNING"
+      - "ERROR"
+      - "未能提取"
+    # 多行日志配置
+    multiline:
+      # 模式类型：pattern表示使用正则表达式进行匹配
+      type: "pattern"
+      # 匹配标准日志格式的时间戳，如："2025-03-28 11:47:28.123"
+      pattern: "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}"
 
 # 日志读取配置
 log_reader:

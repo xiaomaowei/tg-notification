@@ -2,14 +2,14 @@
 # 请复制此文件为telegram_config.yml并修改为你的配置
 
 # Bot Token，从BotFather获取
-# 例如：749277****:AAE****************************NA
-bot_token: "YOUR_BOT_TOKEN_HERE"
+# 例如：7492770499:AAEIxmX_pGDGL5ORTOB5E2u-8_9KYC2a-NA
+bot_token: "7492770499:AAEIxmX_pGDGL5ORTOB5E2u-8_9KYC2a-NA"
 
 # Chat ID，接收消息的目标ID
 # 可以是私聊ID（正数，如123456789）
 # 频道ID（负数，如-1001234567890，或@channel_name）
 # 群组ID（负数，如-123456789）
-chat_id: "YOUR_CHAT_ID_HERE"
+chat_id: "723610835"
 
 # 消息解析模式，支持HTML、Markdown或留空（纯文本）
 # HTML格式支持：<b>粗体</b>、<i>斜体</i>、<code>等宽字</code>等标签

@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
 # Telegram通知程序实施计划
 
 本文档详细描述Telegram通知程序项目的实施计划和各功能模块的开发步骤。项目分为基础架构、配置管理、日志监控、Telegram通知和运行控制五个主要阶段。

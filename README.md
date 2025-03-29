@@ -164,3 +164,7 @@ log_files:
 ## 日志文件
 
 程序的日志文件保存在 `logs/tg_notification.log`，可用于调试和查看运行情况。
+
+## 圖例
+<img width="437" alt="image" src="https://github.com/user-attachments/assets/61366379-5225-4a4d-aad5-eae8401a50b3" />
+

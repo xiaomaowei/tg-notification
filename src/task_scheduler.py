@@ -397,16 +397,42 @@ class ServiceManager:
                 # 配置日志记录器，确保日志也写入文件
                 log_file = os.path.join(original_dir, "logs", "tg_notification.log")
                 try:
-                    from logging.handlers import RotatingFileHandler
-                    file_handler = RotatingFileHandler(
-                        log_file,
-                        maxBytes=10 * 1024 * 1024,  # 10MB
-                        backupCount=5
-                    )
-                    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-                    file_handler.setFormatter(formatter)
-                    logger.addHandler(file_handler)
-                    logger.debug("守护进程添加了文件日志处理器")
+                    # 导入我们的标准化日志处理器而不是RotatingFileHandler
+                    from src.main import StandardizedFileHandler
+                    # 创建日志目录
+                    log_dir = os.path.join(original_dir, "logs")
+                    os.makedirs(log_dir, exist_ok=True)
+                    
+                    # 为每个日志级别创建对应的处理器
+                    level_info = logging.INFO
+                    level_warning = logging.WARNING
+                    level_error = logging.ERROR
+                    level_debug = logging.DEBUG
+                    
+                    # 添加各级别的处理器
+                    handlers = [
+                        (StandardizedFileHandler(log_dir, "tg_notification", "INFO"), level_info),
+                        (StandardizedFileHandler(log_dir, "tg_notification", "WARNING"), level_warning),
+                        (StandardizedFileHandler(log_dir, "tg_notification", "ERROR"), level_error),
+                        (StandardizedFileHandler(log_dir, "tg_notification", "DEBUG"), level_debug)
+                    ]
+                    
+                    # 设置处理器并添加到logger
+                    for handler, level in handlers:
+                        handler.setLevel(level)
+                        
+                        # 设置过滤器，只处理特定级别的日志
+                        def make_filter(target_level):
+                            return lambda record: record.levelno == target_level
+                            
+                        handler.addFilter(make_filter(level))
+                        
+                        # 设置格式并添加处理器
+                        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                        handler.setFormatter(formatter)
+                        logger.addHandler(handler)
+                    
+                    logger.debug("守护进程添加了标准化文件日志处理器")
                 except Exception as e:
                     # 如果无法配置日志，至少将错误写入系统日志
                     import syslog

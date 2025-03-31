@@ -11,7 +11,7 @@ import os
 import sys
 import argparse
 import logging
-from logging.handlers import RotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler
 import time
 import threading
 import signal
@@ -19,33 +19,111 @@ from datetime import datetime
 
 from .application import Application
 
+class StandardizedLogFormatter(logging.Formatter):
+    """标准化日志格式化器，在格式化时添加文件名相关信息"""
+    
+    def __init__(self, fmt=None, datefmt=None, style='%', module_name="unspecified"):
+        super().__init__(fmt, datefmt, style)
+        self.module_name = module_name
+    
+    def format(self, record):
+        """重写format方法，为日志记录添加额外的信息"""
+        # 创建新的记录副本，避免修改原始记录
+        record_copy = logging.makeLogRecord(record.__dict__)
+        # 添加模块名称
+        record_copy.module_name = self.module_name
+        return super().format(record_copy)
+
+class StandardizedFileHandler(TimedRotatingFileHandler):
+    """标准化文件处理器，动态生成符合标准的日志文件名"""
+    
+    def __init__(self, log_dir, module_name, level_name, when='midnight', interval=1, backupCount=10):
+        """
+        初始化处理器
+        
+        Args:
+            log_dir: 日志目录
+            module_name: 模块/功能名称
+            level_name: 日志级别名称
+            when: 日志滚动时间单位
+            interval: 滚动间隔
+            backupCount: 保留文件数量
+        """
+        self.log_dir = log_dir
+        self.module_name = module_name
+        self.level_name = level_name
+        
+        # 创建日志文件名
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{module_name}_{timestamp}_{level_name}.log"
+        filepath = os.path.join(log_dir, filename)
+        
+        # 初始化父类
+        super().__init__(
+            filepath, 
+            when=when, 
+            interval=interval, 
+            backupCount=backupCount
+        )
+        
+        # 设置格式化器
+        formatter = StandardizedLogFormatter(
+            '%(asctime)s - %(levelname)s - %(module_name)s - %(message)s',
+            module_name=module_name
+        )
+        self.setFormatter(formatter)
+
 # 设置日志
-def setup_logger(log_level=logging.INFO):
-    """设置日志记录器"""
-    logger = logging.getLogger("tg_notification")
+def setup_logger(log_level=logging.INFO, module_name="tg_notification"):
+    """
+    设置日志记录器，使用标准化的文件命名
+    
+    Args:
+        log_level: 日志级别
+        module_name: 模块/功能名称
+        
+    Returns:
+        配置好的日志记录器
+    """
+    logger = logging.getLogger(module_name)
     logger.setLevel(log_level)
+    
+    # 清除可能存在的旧处理器
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
     
     # 创建日志目录
     log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
     os.makedirs(log_dir, exist_ok=True)
     
-    # 文件处理器，支持日志轮转
-    file_handler = RotatingFileHandler(
-        os.path.join(log_dir, "tg_notification.log"),
-        maxBytes=10 * 1024 * 1024,  # 10MB
-        backupCount=5
-    )
+    # 为不同级别创建不同的处理器
+    level_handlers = {
+        logging.INFO: StandardizedFileHandler(log_dir, module_name, "INFO"),
+        logging.WARNING: StandardizedFileHandler(log_dir, module_name, "WARNING"),
+        logging.ERROR: StandardizedFileHandler(log_dir, module_name, "ERROR"),
+        logging.DEBUG: StandardizedFileHandler(log_dir, module_name, "DEBUG"),
+    }
     
-    # 控制台处理器
+    # 配置各级别的处理器
+    for level, handler in level_handlers.items():
+        handler.setLevel(level)
+        
+        # 设置过滤器，只处理特定级别的日志
+        def filter_level(record, target_level=level):
+            return record.levelno == target_level
+            
+        handler.addFilter(filter_level)
+        logger.addHandler(handler)
+    
+    # 控制台处理器（显示所有级别日志）
     console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
     
     # 设置格式
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
     console_handler.setFormatter(formatter)
     
-    # 添加处理器
-    logger.addHandler(file_handler)
+    # 添加控制台处理器
     logger.addHandler(console_handler)
     
     return logger
@@ -107,11 +185,11 @@ def main():
         try:
             if app.start_service(args.interval, not args.no_daemon):
                 if not args.no_daemon:
-                    print(f"监控服务已在后台启动，日志文件位置: logs/tg_notification.log")
+                    print(f"监控服务已在后台启动，日志目录: logs/")
                     print(f"使用命令查看服务状态: python tg_notification.py status")
                     print(f"使用命令停止服务: python tg_notification.py stop")
                 else:
-                    print(f"监控服务已在前台启动，日志文件位置: logs/tg_notification.log")
+                    print(f"监控服务已在前台启动，日志目录: logs/")
                     # 如果是前台模式，则保持主进程运行
                     try:
                         # 使用事件来等待，而不是无限循环

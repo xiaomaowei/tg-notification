@@ -1,0 +1,37 @@
+# 项目2关键词监控配置
+# 此文件用于监控project2相关的日志文件
+
+# 日志文件列表
+log_files:
+  # 项目2的API日志
+  - path: "/var/log/project2/api.log"
+    keywords:
+      - "ERROR"
+      - "CRITICAL"
+      - "API调用失败"
+      - "超时"
+    use_regex: false
+
+  # 项目2的数据处理日志
+  - path: "/var/log/project2/data_processing.log"
+    keywords:
+      - "数据处理异常"
+      - "数据库连接失败"
+      - "数据验证失败"
+    use_regex: false
+    # 多行日志配置
+    multiline:
+      type: "pattern"
+      pattern: "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}"
+
+  # 项目2的AI模型日志
+  - path: "/home/deniswei/project2/ai_model/*.log"
+    keywords:
+      - "模型训练失败"
+      - "预测错误"
+      - "内存不足"
+      - "GPU错误"
+    # 多行日志配置
+    multiline:
+      type: "pattern"
+      pattern: "^\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\]" 

@@ -12,6 +12,8 @@
 - 可配置的监控间隔
 - 支持多种日志格式，包括多行日志
 - 支持使用通配符匹配多个日志文件
+- **新功能**：支持按项目分类的多配置文件管理
+- **新功能**：标准化的日志文件命名格式
 
 ## 安装
 
@@ -28,12 +30,16 @@ pip install -r requirements.txt
 ```bash
 cp config/telegram_config.yml.example config/telegram_config.yml
 cp config/keyword_config.yml.example config/keyword_config.yml
+# 或者创建项目专属的配置文件
+mkdir -p keyword_config
+cp config/keyword_config.yml.example keyword_config/project1_keyword.yml
 ```
 
 2. 修改配置文件
 
 - 修改 `config/telegram_config.yml` 文件，填入你的Telegram Bot Token和Chat ID
 - 修改 `config/keyword_config.yml` 文件，配置需要监控的日志文件和关键词
+- 或者按项目创建并配置 `keyword_config/` 目录下的多个配置文件
 
 ## 使用方法
 
@@ -103,7 +109,11 @@ chat_id: "YOUR_CHAT_ID_HERE"
 parse_mode: "HTML"
 ```
 
-### 关键词配置 (keyword_config.yml)
+### 关键词配置
+
+程序支持两种配置关键词的方式：
+
+#### 1. 单一配置文件 (config/keyword_config.yml)
 
 ```yaml
 # 日志文件列表
@@ -136,6 +146,61 @@ log_files:
       pattern: "^\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\]"
 ```
 
+#### 2. 按项目分类的多配置文件 (keyword_config/ 目录)
+
+您可以在 `keyword_config/` 目录下创建多个 YAML 文件，每个文件对应不同的项目或应用。程序将自动读取并合并所有配置文件中的监控项。
+
+例如，创建 `keyword_config/project1_keyword.yml`：
+
+```yaml
+# 项目1关键词监控配置
+log_files:
+  - path: "/var/log/project1/application.log"
+    keywords:
+      - "ERROR"
+      - "FATAL"
+    use_regex: false
+
+log_reader:
+  context_lines: 3  # 项目特定的配置
+```
+
+创建 `keyword_config/project2_keyword.yml`：
+
+```yaml
+# 项目2关键词监控配置
+log_files:
+  - path: "/var/log/project2/api.log"
+    keywords:
+      - "API调用失败"
+      - "超时"
+    use_regex: false
+```
+
+这种方式的优势：
+- 按项目组织配置，更清晰易管理
+- 不同团队可以独立维护各自的配置
+- 易于版本控制和比较差异
+
+### 标准化日志文件名
+
+程序现在使用标准化的日志文件命名格式：
+
+```
+[功能名称]_当前日期时间_级别.log
+```
+
+例如：
+- `tg_notification_20250330_081502_INFO.log`
+- `tg_notification_20250330_081502_ERROR.log`
+- `tg_notification_20250330_081502_WARNING.log`
+- `tg_notification_20250330_081502_DEBUG.log`
+
+这种命名方式的优势：
+- 通过文件名可以快速识别日志来源、时间和级别
+- 不同级别的日志分离，便于排查特定类型的问题
+- 时间戳便于归档和查找特定时间段的日志
+
 ### 支持的日志格式
 
 程序支持以下几种常见的日志格式：
@@ -163,7 +228,7 @@ log_files:
 
 ## 日志文件
 
-程序的日志文件保存在 `logs/tg_notification.log`，可用于调试和查看运行情况。
+程序的日志文件保存在 `logs/` 目录下，文件名格式为 `[功能名称]_YYYYMMDD_HHMMSS_级别.log`。
 
 ## 圖例
 <img width="437" alt="image" src="https://github.com/user-attachments/assets/61366379-5225-4a4d-aad5-eae8401a50b3" />

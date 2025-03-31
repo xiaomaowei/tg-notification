@@ -3,6 +3,7 @@ downloads/videos/**
 downloads/images/**
 error_log/
 debug/
+keyword_config/
 
 # Python
 __pycache__/

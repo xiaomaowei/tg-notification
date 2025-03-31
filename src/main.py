@@ -57,21 +57,23 @@ class StandardizedFileHandler(TimedRotatingFileHandler):
         self.backupCount = backupCount
         self.file_created = False
         
-        # 创建日志文件名的模式，但不立即创建文件
-        self.filename_pattern = os.path.join(log_dir, f"{module_name}_%Y%m%d_%H%M%S_{level_name}.log")
+        # 创建日志文件名前缀
+        self.filename_prefix = f"{module_name}_{level_name}"
         self.current_filename = None
         
         # 先使用临时文件路径初始化父类
         # 使用/dev/null（Unix/Linux）或NUL（Windows）作为临时文件，避免在磁盘创建不必要的文件
         temp_file = os.devnull
         
-        # 初始化父类
+        # 初始化父类，但禁用自动轮转 - 我们将使用自己的方式管理文件
         super().__init__(
             temp_file, 
             when=when, 
             interval=interval, 
             backupCount=backupCount
         )
+        # 禁用自动轮转
+        self.rolloverAt = float('inf')  # 设置一个非常大的值，实际上禁用了自动轮转
         
         # 设置格式化器
         formatter = StandardizedLogFormatter(
@@ -106,6 +108,19 @@ class StandardizedFileHandler(TimedRotatingFileHandler):
         
         # 调用父类的emit方法写入日志
         super().emit(record)
+    
+    def doRollover(self):
+        """重写轮转方法，使用自定义的命名方式"""
+        # 我们完全禁用了自动轮转，所以这个方法不会被调用
+        # 但为了安全起见，如果被调用，就创建一个新的文件
+        if self.file_created:
+            if self.stream:
+                self.stream.close()
+                self.stream = None
+            
+            # 创建新的日志文件
+            self.file_created = False
+            self._create_real_file()
 
 # 设置日志
 def setup_logger(log_level=logging.INFO, module_name="tg_notification"):

@@ -52,15 +52,22 @@ class StandardizedFileHandler(TimedRotatingFileHandler):
         self.log_dir = log_dir
         self.module_name = module_name
         self.level_name = level_name
+        self.when = when
+        self.interval = interval
+        self.backupCount = backupCount
+        self.file_created = False
         
-        # 创建日志文件名
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{module_name}_{timestamp}_{level_name}.log"
-        filepath = os.path.join(log_dir, filename)
+        # 创建日志文件名的模式，但不立即创建文件
+        self.filename_pattern = os.path.join(log_dir, f"{module_name}_%Y%m%d_%H%M%S_{level_name}.log")
+        self.current_filename = None
+        
+        # 先使用临时文件路径初始化父类
+        # 使用/dev/null（Unix/Linux）或NUL（Windows）作为临时文件，避免在磁盘创建不必要的文件
+        temp_file = os.devnull
         
         # 初始化父类
         super().__init__(
-            filepath, 
+            temp_file, 
             when=when, 
             interval=interval, 
             backupCount=backupCount
@@ -72,6 +79,33 @@ class StandardizedFileHandler(TimedRotatingFileHandler):
             module_name=module_name
         )
         self.setFormatter(formatter)
+    
+    def _create_real_file(self):
+        """当需要写入日志时，创建实际的日志文件"""
+        if not self.file_created:
+            # 使用当前时间创建文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.current_filename = f"{self.module_name}_{timestamp}_{self.level_name}.log"
+            self.baseFilename = os.path.join(self.log_dir, self.current_filename)
+            
+            # 确保日志目录存在
+            os.makedirs(os.path.dirname(self.baseFilename), exist_ok=True)
+            
+            if self.stream:
+                self.stream.close()
+                self.stream = None
+            
+            # 打开实际的日志文件
+            self.stream = self._open()
+            self.file_created = True
+    
+    def emit(self, record):
+        """重写emit方法，确保在写入日志前创建实际的日志文件"""
+        # 创建实际的日志文件（如果尚未创建）
+        self._create_real_file()
+        
+        # 调用父类的emit方法写入日志
+        super().emit(record)
 
 # 设置日志
 def setup_logger(log_level=logging.INFO, module_name="tg_notification"):

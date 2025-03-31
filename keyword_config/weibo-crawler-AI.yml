@@ -1,0 +1,37 @@
+# 微博爬虫AI项目关键词监控配置
+# 用于监控微博爬虫AI项目的日志文件
+
+# 日志文件列表
+log_files:
+  # 微博爬虫错误日志
+  - path: "/home/deniswei/weibo-crawler-AI/error_log/*.log"
+    keywords:
+      - "ERROR"
+      - "WARNING"
+      - "Failed to connect"
+      - "异常"
+      - "未能提取"
+      - "失败"
+    # 多行日志配置
+    multiline:
+      type: "pattern"
+      pattern: "^\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\]"
+
+  # AI内容生成器错误日志
+  - path: "/home/deniswei/weibo-crawler-AI/ai_content_generator/logs/*.log"
+    keywords:
+      - "ERROR"
+      - "CRITICAL"
+      - "OpenAI API error"
+      - "生成失败"
+      - "无法处理"
+    use_regex: false
+    # 多行日志配置
+    multiline:
+      type: "pattern"
+      pattern: "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}"
+
+# 日志读取配置
+log_reader:
+  # 上下文行数（匹配行前后显示的行数）
+  context_lines: 5 

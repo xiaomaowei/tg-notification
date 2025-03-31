@@ -34,6 +34,9 @@ class ConfigLoader:
             
         logger.debug(f"配置目录路径: {self.config_dir}")
         self._config_cache = {}
+        
+        # 获取项目根目录
+        self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     def load_config(self, config_name: str) -> Dict[str, Any]:
         """
@@ -85,8 +88,16 @@ class ConfigLoader:
         Returns:
             合并后的配置字典
         """
-        directory_path = os.path.join(self.config_dir, directory_name)
-        logger.debug(f"尝试从目录加载配置: {directory_path}")
+        # 首先尝试从项目根目录下的directory_name目录加载
+        directory_path = os.path.join(self.base_dir, directory_name)
+        logger.debug(f"尝试从项目根目录中加载配置: {directory_path}")
+        
+        # 如果根目录下找不到，则尝试从config目录下寻找
+        if not os.path.exists(directory_path) or not os.path.isdir(directory_path):
+            logger.debug(f"在项目根目录中未找到配置目录: {directory_path}")
+            # 尝试从配置目录下寻找
+            directory_path = os.path.join(self.config_dir, directory_name)
+            logger.debug(f"尝试从配置目录中加载配置: {directory_path}")
         
         if not os.path.exists(directory_path):
             logger.warning(f"配置目录不存在: {directory_path}")
@@ -147,7 +158,7 @@ class ConfigLoader:
         self._config_cache[cache_key] = merged_config
         
         # 记录合并结果
-        logger.info(f"已从目录 {directory_name} 合并 {len(yml_files)} 个配置文件，包含 {len(merged_config['log_files'])} 个日志监控项")
+        logger.info(f"已从目录 {directory_path} 合并 {len(yml_files)} 个配置文件，包含 {len(merged_config['log_files'])} 个日志监控项")
         logger.debug(f"配置项来源: {config_sources}")
         
         return merged_config
@@ -220,6 +231,9 @@ class ConfigManager:
         """
         获取关键词配置
         
+        首先尝试从项目根目录下的keyword_config目录读取配置文件
+        如果没有找到，再尝试从config目录读取keyword_config.yml文件
+        
         Args:
             reload: 是否强制重新加载
             
@@ -232,11 +246,14 @@ class ConfigManager:
                 self._keyword_configs_directory, "keyword", reload
             )
             
-            # 如果目录中没有配置文件，则尝试加载单一配置文件
-            if not self._keyword_config or not self._keyword_config.get("log_files"):
-                logger.info(f"未从目录 {self._keyword_configs_directory} 加载到配置，尝试加载单一配置文件")
-                self._keyword_config = self.config_loader.get_config("keyword_config", reload)
+            # 如果找到了配置文件并且包含log_files条目，则直接返回
+            if self._keyword_config and self._keyword_config.get("log_files"):
+                logger.debug(f"已从目录 {self._keyword_configs_directory} 加载配置")
+                return self._keyword_config
                 
+            # 如果没有找到配置文件，则尝试从config目录中加载单一配置文件
+            logger.info(f"未从目录 {self._keyword_configs_directory} 加载到配置，尝试加载单一配置文件")
+            self._keyword_config = self.config_loader.get_config("keyword_config", reload)
             return self._keyword_config
         except Exception as e:
             # 如果从目录加载失败，回退到原有的单一文件加载方式

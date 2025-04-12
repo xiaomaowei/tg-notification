@@ -25,3 +25,4 @@ config/*.env
 # Others
 google-chrome-stable_current_amd64.deb
 error_screenshot_*.jpg
+this.log
